@@ -13,7 +13,7 @@
 
 *Transformamos datos satelitales de la NASA y telemetría global de suelos en decisiones claras y accionables de rotación de cultivos para agricultores, asesores técnicos e instituciones rurales.*
 
-[📖 Cómo Funciona (Guía Breve)](docs/COMO_FUNCIONA_ES.md) · [🏛️ Arquitectura Técnica](ARCHITECTURE.md) · [🚀 Inicio Rápido](#-inicio-rápido)
+[Enlace a GITLAB](https://terrashift-amac-148591.gitlab.io) [📖 Cómo Funciona (Guía Breve)](docs/COMO_FUNCIONA_ES.md) · [🏛️ Arquitectura Técnica](ARCHITECTURE.md) · [🚀 Inicio Rápido](#-inicio-rápido)
 
 </div>
 
