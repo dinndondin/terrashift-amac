@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AMAC Terrashift — Asistente de Monitoreo Agrícola Climático con Datos Satelitales NASA (POWER, SMAP, GPM) y Suelos ISRIC SoilGrids para la adaptación de cultivos y rotaciones en Biobío, Chile. NASA Space Apps Challenge 2026.">
+    <meta name="theme-color" content="#2D6A4F">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+    <title>AMAC — Asistente de Monitoreo Agrícola Climático</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet 1.9.4 (Mapas) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
+        onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';" crossorigin="" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" crossorigin=""></script>
+    <script>
+        if (typeof L === 'undefined') {
+            document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');
+        }
+    </script>
+
+    <!-- Chart.js 4 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+    <!-- ═══════════════ PANTALLA DE INICIO (SELECCIÓN DE ROL) ═══════════════ -->
+    <div id="role-gate-overlay" class="role-gate-overlay" role="dialog" aria-modal="true"
+        aria-labelledby="role-gate-title">
+        <div class="role-gate-container">
+            <div class="role-gate-header">
+                <div class="role-gate-brand">
+                    <span class="role-gate-logo">🌱</span>
+                    <div>
+                        <span class="role-gate-nasa-pill">🛰️ NASA Space Apps Challenge 2026 · Field Shift</span>
+                        <h1 id="role-gate-title" class="role-gate-title">Bienvenido a TERRASHIFT <span
+                                class="role-gate-subbrand">por AMAC</span></h1>
+                    </div>
+                </div>
+                <p class="role-gate-subtitle">
+                    Convertimos datos satelitales de la NASA (POWER, SMAP, GPM) y SoilGrids en decisiones claras de
+                    rotación para tu campo. <strong>¿Cómo usarás la plataforma hoy?</strong>
+                </p>
+            </div>
+
+            <div class="role-gate-cards">
+                <button type="button" class="role-gate-card role-gate-farmer" onclick="selectInitialRole('agricultor')">
+                    <div class="role-gate-card-badge">DECISIÓN EN CAMPO</div>
+                    <div class="role-gate-card-icon">🚜</div>
+                    <h2>Soy Agricultor / Productor</h2>
+                    <p>Quiero saber <strong>qué rotar en mi predio</strong>, revisar el riesgo de heladas o sequía y
+                        obtener una recomendación directa paso a paso, sin tecnicismos complejos.</p>
+                    <ul class="role-gate-features">
+                        <li>📍 Ubicación satelital simplificada de mi predio</li>
+                        <li>🧭 ¿Qué decisión tomar? — Recomendación directa</li>
+                        <li>📋 Guía práctica de manejo en campo</li>
+                    </ul>
+                    <span class="role-gate-cta">Entrar como Agricultor →</span>
+                </button>
+
+                <button type="button" class="role-gate-card role-gate-advisor" onclick="selectInitialRole('asesor')">
+                    <div class="role-gate-card-badge">COPILOTO TÉCNICO B2B2C</div>
+                    <div class="role-gate-card-icon">🔬</div>
+                    <h2>Soy Asesor Técnico / Agrónomo</h2>
+                    <p>Quiero gestionar la cartera de productores del Biobío, calibrar ponderaciones MCDA con
+                        telemetría NASA y validar estrategias para extensión agrícola.</p>
+                    <ul class="role-gate-features">
+                        <li>👥 Gestión de agricultores y predios multi-lote</li>
+                        <li>📡 Telemetría NASA POWER, SMAP, GPM y SoilGrids</li>
+                        <li>🏛️ Portal Regional e Informe Oficial / Dossier</li>
+                    </ul>
+                    <span class="role-gate-cta role-gate-cta-advisor">Entrar como Asesor Técnico →</span>
+                </button>
+            </div>
+
+            <div class="role-gate-footer">
+                <span>¿Representas a una cooperativa, INDAP o institución?</span>
+                <button type="button" class="role-gate-link-btn" onclick="closeRoleGate(); openLoginModal();">
+                    🏛️ Acceder como Institución B2B / Perfil Personalizado
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ LOADING OVERLAY ═══════════════ -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner-wrap">
+            <div class="spinner"></div>
+            <p class="spinner-text">Cargando datos…</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════ TOAST CONTAINER ═══════════════ -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">🌱</span>
+            <div>
+                <h1 class="sidebar-title">TERRASHIFT</h1>
+                <p class="sidebar-subtitle">por Equipo AMAC</p>
+            </div>
+        </div>
+
+        <!-- Perfil de Productor / Iniciar Sesión -->
+        <div id="user-profile-widget" class="user-profile-widget"></div>
+
+        <!-- Selector Rápido de Rol Directo (Mentorías AMAC) -->
+        <div class="sidebar-role-selector">
+            <span class="role-selector-title">Cambiar Perfil:</span>
+            <div class="role-toggle-group">
+                <button type="button" id="btn-role-agri" class="role-toggle-btn" onclick="switchUserRole('agricultor')">
+                    🚜 Agricultor
+                </button>
+                <button type="button" id="btn-role-asesor" class="role-toggle-btn active"
+                    onclick="switchUserRole('asesor')">
+                    🔬 Asesor Técnico
+                </button>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Navegación principal">
+            <a href="javascript:void(0)" id="nav-item-dashboard" class="nav-item active" data-section="dashboard" onclick="navigateTo('dashboard')">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">General</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-finca" class="nav-item" data-section="finca" onclick="navigateTo('finca')">
+                <span class="nav-icon">🌾</span>
+                <span class="nav-label" id="nav-label-finca">Mi Predio</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-clima" class="nav-item" data-section="clima" onclick="navigateTo('clima')">
+                <span class="nav-icon">🌤️</span>
+                <span class="nav-label">Clima NASA</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-rotaciones" class="nav-item" data-section="rotaciones" onclick="navigateTo('rotaciones')">
+                <span class="nav-icon">🔄</span>
+                <span class="nav-label" id="nav-label-rotaciones">3 Estrategias</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-regional" class="nav-item" data-section="regional" onclick="navigateTo('regional')">
+                <span class="nav-icon">🏛️</span>
+                <span class="nav-label">Portal Regional</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-reportes" class="nav-item" data-section="reportes" onclick="navigateTo('reportes')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label" id="nav-label-reportes">Informe Oficial</span>
+            </a>
+            <a href="javascript:void(0)" id="nav-item-nasa" class="nav-item" data-section="nasa" onclick="navigateTo('nasa')">
+                <span class="nav-icon">🛰️</span>
+                <span class="nav-label">Bases NASA / Suelos</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <p>NASA Space Apps</p>
+            <p class="sidebar-version">versión 1 2026</p>
+        </div>
+    </aside>
+
+    <!-- ═══════════════ MOBILE HEADER ═══════════════ -->
+    <header class="mobile-header">
+        <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()" aria-label="Abrir menú de navegación">☰</button>
+        <span class="mobile-title">🌿 AMAC</span>
+        <button class="mobile-user-btn" onclick="openLoginModal()" title="Mi Perfil" aria-label="Abrir mi perfil de usuario">👤</button>
+    </header>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="main-content" id="main-content">
+
+        <!-- ──────── DASHBOARD ──────── -->
+        <section id="section-dashboard" class="content-section active">
+            <div class="section-header">
+                <h2>🏠 Panel de Control</h2>
+                <p class="section-desc">Resumen general de tu finca y condiciones actuales</p>
+            </div>
+
+            <!-- Barra de Fecha Actual y Sincronización en Vivo -->
+            <div class="date-sync-bar">
+                <div class="current-date-info">
+                    <span id="dash-current-date" class="date-live-badge">📅 <strong>Actualizando
+                            fecha...</strong></span>
+                    <span class="satellite-live-pill">🛰️ Satélites NASA POWER / SMAP en Vivo</span>
+                </div>
+                <button id="sync-btn" class="btn btn-secondary btn-sm sync-btn" onclick="refreshSatelliteData()">
+                    <span class="sync-icon">🔄</span> Sincronizar Datos Satelitales
+                </button>
+            </div>
+
+            <!-- Alert Banners -->
+            <div id="dashboard-alerts" class="alert-area">
+                <div class="alert-banner alert-warning">
+                    <span class="alert-icon">⚠️</span>
+                    <div class="alert-body">
+                        <strong>Riesgo de helada</strong>
+                        <p>Se esperan temperaturas bajo cero en las próximas 2 semanas. Considere proteger cultivos
+                            sensibles.</p>
+                    </div>
+                    <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+                </div>
+                <div class="alert-banner alert-info">
+                    <span class="alert-icon">💧</span>
+                    <div class="alert-body">
+                        <strong>Humedad del suelo por debajo del promedio</strong>
+                        <p>La humedad del suelo está un 15% por debajo del nivel óptimo. Considere riego adicional.</p>
+                    </div>
+                    <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+                </div>
+            </div>
+
+            <!-- Metric Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#D8F3DC;color:#2D6A4F;">🌡️</div>
+                    <div class="metric-info">
+                        <span class="metric-value">17°C</span>
+                        <span class="metric-label">Temperatura Promedio</span>
+                        <span class="metric-trend trend-neutral">→ Normal para la época</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#A9D6E5;color:#1B4965;">🌧️</div>
+                    <div class="metric-info">
+                        <span class="metric-value">85 mm</span>
+                        <span class="metric-label">Precipitación Mensual</span>
+                        <span class="metric-trend trend-down">↓ 12% menos que el promedio</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#D8F3DC;color:#2D6A4F;">💧</div>
+                    <div class="metric-info">
+                        <span class="metric-value">42%</span>
+                        <span class="metric-label">Humedad del Suelo</span>
+                        <span class="metric-trend trend-down">↓ Por debajo del óptimo</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#B7E4C7;color:#2D6A4F;">🌱</div>
+                    <div class="metric-info">
+                        <span class="metric-value">Soja, Maíz</span>
+                        <span class="metric-label">Cultivos Actuales</span>
+                        <span class="metric-trend trend-up">✅ En buen estado</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Charts Row (Visible para Asesor Técnico, Oculto para Agricultor) -->
+            <div id="dashboard-charts-row" class="charts-row">
+                <div class="card chart-card">
+                    <h3 class="card-title">🌡️ Temperatura — Últimos 12 Meses</h3>
+                    <div class="chart-container">
+                        <canvas id="dashboard-temp-chart"></canvas>
+                    </div>
+                </div>
+                <div class="card chart-card">
+                    <h3 class="card-title">🌧️ Precipitación Mensual</h3>
+                    <div class="chart-container">
+                        <canvas id="dashboard-precip-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Info Row (Mantener para ambos) -->
+            <div class="cards-row">
+                <div class="card">
+                    <h3 class="card-title">📍 Ubicación Actual</h3>
+                    <p id="dash-location" class="card-value">Los Ángeles, Provincia de Biobío, Chile</p>
+                    <p id="dash-coords" class="card-detail">Lat: -37.47 | Lon: -72.35</p>
+                    <p id="dash-soil" class="card-detail">Tipo de suelo: Franco Trumao</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">📅 Próxima Acción</h3>
+                    <p class="card-value">Preparar siembra de trigo</p>
+                    <p class="card-detail">Fecha recomendada: Junio</p>
+                    <p class="card-detail">Según estrategia de rotación activa</p>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">⭐ Estrategia Recomendada</h3>
+                    <p id="dash-rec-crops" class="card-value">Soja → Vicia Villosa → Maíz → Trigo</p>
+                    <div class="score-bar-mini">
+                        <div id="dash-score-bar" class="score-bar-fill" style="width:88%;" data-score="88"></div>
+                    </div>
+                    <p id="dash-score-text" class="card-detail">Puntuación general: 88/100 (Óptima)</p>
+                </div>
+            </div>
+
+            <!-- 🎯 PROTAGONISMO CENTRAL: 3 ESTRATEGIAS DEL PLAN DE ACCIÓN EN DASHBOARD (Siempre Visible para Ambos) -->
+            <div id="dashboard-strategies-showcase" class="card dashboard-showcase-card">
+                <div class="showcase-header">
+                    <div>
+                        <span class="showcase-badge">🎯 DECISIONES AGRÍCOLAS ESTRATÉGICAS</span>
+                        <h3 class="showcase-title">Comparativa de las 3 Estrategias del Plan de Acción</h3>
+                        <p class="showcase-subtitle">Evaluadas con telemetría satelital NASA POWER, SMAP y GPM para tu tipo de suelo (FRANCO)</p>
+                    </div>
+                    <button id="btn-showcase-complete" class="btn btn-secondary btn-sm" onclick="navigateTo('rotaciones')">
+                        Ver Análisis Completo ➔
+                    </button>
+                </div>
+
+                <div class="showcase-cards-grid">
+                    <!-- 1. Rotación Tradicional (Línea Base) -->
+                    <div class="showcase-card" onclick="navigateTo('rotaciones')">
+                        <div class="showcase-card-top">
+                            <span class="showcase-card-badge badge-baseline">⚠️ Línea Base del Productor</span>
+                            <div class="showcase-card-score">58<span>/100</span></div>
+                        </div>
+                        <h4 class="showcase-card-name">1. Rotación Tradicional (Línea Base)</h4>
+                        <p class="showcase-card-summary">Monocultivo tradicional con suelo descubierto en invierno. Alta vulnerabilidad a erosión y malezas.</p>
+                        
+                        <div class="showcase-timeline-mini">
+                            <span class="mini-crop-pill" style="background:#40916C20; color:#40916C; border:1px solid #40916C40;">Soja</span>
+                            ➔ <span class="mini-crop-pill" style="background:#6C757D20; color:#6C757D; border:1px solid #6C757D40;">Barbecho</span>
+                            ➔ <span class="mini-crop-pill" style="background:#2C7DA020; color:#2C7DA0; border:1px solid #2C7DA040;">Maíz</span>
+                            ➔ <span class="mini-crop-pill" style="background:#ADB5BD20; color:#ADB5BD; border:1px solid #ADB5BD40;">Barbecho</span>
+                        </div>
+
+                        <div class="showcase-card-footer">
+                            <span>💧 Agua: <strong>52/100</strong></span>
+                            <span>🌱 Suelo: <strong>48/100</strong></span>
+                            <span class="showcase-link">Detalles →</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Regeneración de Suelo y Biomasa (Recomendada) -->
+                    <div class="showcase-card showcase-card-rec" onclick="navigateTo('rotaciones')">
+                        <div class="showcase-card-top">
+                            <span class="showcase-card-badge badge-recommended">⭐ RECOMENDADA POR AMAC & NASA</span>
+                            <div class="showcase-card-score">88<span>/100</span></div>
+                        </div>
+                        <h4 class="showcase-card-name">2. Regeneración de Suelo y Biomasa</h4>
+                        <p class="showcase-card-summary">Incorpora leguminosa fijadora de Nitrógeno y cobertura continua. Maximiza salud del suelo y reduce insumos.</p>
+                        
+                        <div class="showcase-timeline-mini">
+                            <span class="mini-crop-pill" style="background:#40916C20; color:#40916C; border:1px solid #40916C40;">Soja</span>
+                            ➔ <span class="mini-crop-pill" style="background:#52B78820; color:#52B788; border:1px solid #52B78840;">Vicia</span>
+                            ➔ <span class="mini-crop-pill" style="background:#2C7DA020; color:#2C7DA0; border:1px solid #2C7DA040;">Maíz</span>
+                            ➔ <span class="mini-crop-pill" style="background:#F4A26120; color:#F4A261; border:1px solid #F4A26140;">Trigo</span>
+                        </div>
+
+                        <div class="showcase-card-footer">
+                            <span>💧 Agua: <strong>85/100</strong></span>
+                            <span>🌱 Suelo: <strong>94/100</strong></span>
+                            <span class="showcase-link">Detalles →</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. Resiliencia Hídrica y Ahorro de Agua -->
+                    <div class="showcase-card" onclick="navigateTo('rotaciones')">
+                        <div class="showcase-card-top">
+                            <span class="showcase-card-badge badge-water">💧 MÁXIMA EFICIENCIA HÍDRICA</span>
+                            <div class="showcase-card-score">82<span>/100</span></div>
+                        </div>
+                        <h4 class="showcase-card-name">3. Resiliencia Hídrica y Ahorro de Agua</h4>
+                        <p class="showcase-card-summary">Cultivos rústicos de raíz profunda que toleran sequía y aprovechan agua subsuperficial.</p>
+                        
+                        <div class="showcase-timeline-mini">
+                            <span class="mini-crop-pill" style="background:#1B496520; color:#1B4965; border:1px solid #1B496540;">Sorgo</span>
+                            ➔ <span class="mini-crop-pill" style="background:#89C2D920; color:#89C2D9; border:1px solid #89C2D940;">Centeno</span>
+                            ➔ <span class="mini-crop-pill" style="background:#F4A26120; color:#F4A261; border:1px solid #F4A26140;">Girasol</span>
+                        </div>
+
+                        <div class="showcase-card-footer">
+                            <span>💧 Agua: <strong>94/100</strong></span>
+                            <span>🌱 Suelo: <strong>78/100</strong></span>
+                            <span class="showcase-link">Detalles →</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── MI FINCA / MI TERRENO / PREDIO DE MI AGRICULTOR ──────── -->
+        <section id="section-finca" class="content-section">
+            <div class="section-header">
+                <h2 id="finca-section-title">🌾 Predio de mi agricultor</h2>
+                <p id="finca-section-desc" class="section-desc">Administra los predios de tus agricultores asignados,
+                    revisa su mapa satelital y envíales reportes por WhatsApp</p>
+            </div>
+
+            <!-- Panel Exclusivo para Asesor Técnico: Gestión de Agricultores Asignados (Mentorías AMAC) -->
+            <div id="advisor-farmer-panel" class="card advisor-farmer-card">
+                <div class="advisor-farmer-header">
+                    <div>
+                        <span class="advisor-badge">🔬 PANEL DE EXTENSIÓN RURAL · PRODESAL / INDAP</span>
+                        <h3 class="card-title">👨‍🌾 Agricultores Asignados a mi Cargo</h3>
+                        <p class="card-hint">Haz clic en un agricultor para cargar su predio en el mapa satelital, o
+                            envíale el reporte directo a su WhatsApp:</p>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="toggleAddFarmerModal()">
+                        ➕ Agregar Agricultor
+                    </button>
+                </div>
+
+                <!-- Lista Dinámica de Agricultores del Asesor -->
+                <div id="advisor-farmers-list" class="advisor-farmers-grid"></div>
+
+                <!-- Barra de Acción Rápida del Agricultor Activo -->
+                <div id="advisor-active-farmer-banner" class="advisor-active-farmer-bar"></div>
+            </div>
+
+            <!-- Modal para Agregar Nuevo Agricultor (Asesor) -->
+            <div id="add-farmer-modal" class="modal-backdrop" style="display:none;">
+                <div class="modal-dialog">
+                    <div class="modal-header">
+                        <h3>➕ Registrar Nuevo Agricultor en mi Nómina</h3>
+                        <button class="modal-close-btn" type="button" onclick="toggleAddFarmerModal()" aria-label="Cerrar modal de registro de agricultor">✕</button>
+                    </div>
+                    <form onsubmit="handleAddNewFarmer(event)">
+                        <div class="form-group">
+                            <label>Nombre y Apellido del Agricultor *</label>
+                            <input type="text" id="new-farmer-name" class="input-styled"
+                                placeholder="Ej: Don Carlos Henríquez" required>
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Número de WhatsApp / Teléfono *</label>
+                                <input type="tel" id="new-farmer-phone" class="input-styled"
+                                    placeholder="+56 9 8765 4321" required>
+                            </div>
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Nombre del Predio *</label>
+                                <input type="text" id="new-farmer-farm" class="input-styled"
+                                    placeholder="Ej: Parcela Los Robles" required>
+                            </div>
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Comuna (Provincia de Biobío)</label>
+                                <select id="new-farmer-comuna" class="select-styled">
+                                    <option value="losangeles">Los Ángeles (Lat: -37.47, Lon: -72.35)</option>
+                                    <option value="mulchen">Mulchén (Lat: -37.72, Lon: -72.24)</option>
+                                    <option value="cabrero">Cabrero (Lat: -37.03, Lon: -72.40)</option>
+                                    <option value="santabarbara">Santa Bárbara (Lat: -37.67, Lon: -72.02)</option>
+                                </select>
+                            </div>
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Superficie (ha)</label>
+                                <input type="number" id="new-farmer-size" class="input-styled" value="50" min="1">
+                            </div>
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Tipo de Suelo Estimado</label>
+                                <select id="new-farmer-soil" class="select-styled">
+                                    <option value="franco">Franco (equilibrado)</option>
+                                    <option value="franco-arcilloso" selected>Franco-Arcilloso (Trumao)</option>
+                                    <option value="arenoso">Arenoso (baja retención)</option>
+                                    <option value="arcilloso">Arcilloso</option>
+                                </select>
+                            </div>
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Cultivo Principal</label>
+                                <select id="new-farmer-crop" class="select-styled">
+                                    <option value="trigo" selected>🌾 Trigo</option>
+                                    <option value="maiz">🌽 Maíz</option>
+                                    <option value="avena">🌾 Avena</option>
+                                    <option value="cebada">🌾 Cebada</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer"
+                            style="margin-top:16px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="button" class="btn btn-secondary"
+                                onclick="toggleAddFarmerModal()">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">💾 Guardar Agricultor</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="finca-grid">
+                <!-- Map -->
+                <div class="card map-card">
+                    <h3 class="card-title">📍 Ubicación Satelital del Predio</h3>
+                    <p class="card-hint">Haz clic o arrastra el pin en el lote de tu predio. El círculo verde representa
+                        la superficie estimada en hectáreas.</p>
+
+                    <!-- Selector de regiones agrícolas frecuentes (Foco Biobío, Chile) -->
+                    <div class="preset-regions-bar">
+                        <span class="preset-label">Provincia del Biobío (Zona Piloto):</span>
+                        <button class="btn-chip" onclick="setPredefinedRegion('losangeles')">🌾 Los Ángeles
+                            (Cerealero)</button>
+                        <button class="btn-chip" onclick="setPredefinedRegion('mulchen')">🌾 Mulchén</button>
+                        <button class="btn-chip" onclick="setPredefinedRegion('cabrero')">🌽 Cabrero</button>
+                        <button class="btn-chip" onclick="setPredefinedRegion('santabarbara')">🏔️ Santa
+                            Bárbara</button>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="text" id="location-search" class="input-styled"
+                            placeholder="Buscar comuna o predio (ej: Los Ángeles, Mulchén, Chillán, Cabrero)…"
+                            onkeydown="if(event.key==='Enter') searchLocation(this.value)">
+                        <button class="btn btn-primary btn-sm"
+                            onclick="searchLocation(document.getElementById('location-search').value)">🔍
+                            Buscar</button>
+                        <button class="btn btn-secondary btn-sm" onclick="useCurrentGPSLocation()"
+                            title="Detectar mi ubicación GPS">📍 Mi GPS</button>
+                    </div>
+
+                    <div id="farm-map" class="map-container"></div>
+
+                    <div class="map-hint-bar">
+                        💡 <strong>Modo Satelital:</strong> En la esquina superior derecha del mapa puedes cambiar entre
+                        <strong>🛰️ Satelital</strong> (fotos de alta resolución para ver tu cultivo) y <strong>🗺️
+                            Terrestre</strong>.
+                    </div>
+
+                    <!-- Inspector en Vivo de SoilGrids (ISRIC 250m) -->
+                    <div class="soilgrids-inspector-card">
+                        <div class="soilgrids-header">
+                            <span class="soilgrids-badge">🌱 SOILGRIDS v2.0 (ISRIC) EN VIVO</span>
+                            <span class="soilgrids-coords" id="soilgrids-coords-display">Lat: -37.47, Lon: -72.35</span>
+                        </div>
+                        <div class="soilgrids-grid">
+                            <div class="sg-item">
+                                <span class="sg-label">Textura Estimada:</span>
+                                <strong class="sg-val" id="sg-texture">Franco arcillo-arenoso (Trumao)</strong>
+                            </div>
+                            <div class="sg-item">
+                                <span class="sg-label">Materia Orgánica:</span>
+                                <strong class="sg-val" id="sg-om">3.8% (Óptima)</strong>
+                            </div>
+                            <div class="sg-item">
+                                <span class="sg-label">pH en Agua:</span>
+                                <strong class="sg-val" id="sg-ph">5.9 (Volcánico)</strong>
+                            </div>
+                            <div class="sg-item">
+                                <span class="sg-label">Capacidad de Intercambio (CEC):</span>
+                                <strong class="sg-val" id="sg-cec">18.5 mmol/kg</strong>
+                            </div>
+                        </div>
+                        <div class="soilgrids-footer-text">
+                            <em>* Datos extraídos de la cuadrícula global de 250m de SoilGrids y correlacionados con la
+                                cartografía CIREN.</em>
+                        </div>
+                    </div>
+
+                    <div class="location-info">
+                        <p><strong>Ubicación seleccionada:</strong> <span id="selected-location">Los Ángeles, Provincia
+                                de Biobío, Chile</span></p>
+                        <p>Latitud: <span id="sel-lat">-37.4700</span> | Longitud: <span id="sel-lon">-72.3500</span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Farm Config -->
+                <div class="card config-card">
+                    <h3 class="card-title">⚙️ Configuración del Campo</h3>
+
+                    <div class="form-group">
+                        <label for="soil-type">Tipo de Suelo</label>
+                        <select id="soil-type" class="select-styled" onchange="state.soilType = this.value">
+                            <option value="franco" selected>Franco (equilibrado)</option>
+                            <option value="arcilloso">Arcilloso (pesado, retiene agua)</option>
+                            <option value="arenoso">Arenoso (liviano, drena rápido)</option>
+                            <option value="limoso">Limoso (suave, fértil)</option>
+                            <option value="franco-arcilloso">Franco-Arcilloso</option>
+                            <option value="franco-arenoso">Franco-Arenoso</option>
+                        </select>
+                        <span class="form-hint" title="El tipo de suelo afecta la retención de agua y nutrientes">ℹ️
+                            Influye en las recomendaciones de cultivos</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Cultivos Actuales</label>
+                        <div class="chips-container" id="crops-container">
+                            <span class="chip chip-active">🌱 Soja <button
+                                    onclick="removeCrop(this,'soja')">×</button></span>
+                            <span class="chip chip-active">🌽 Maíz <button
+                                    onclick="removeCrop(this,'maiz')">×</button></span>
+                        </div>
+                        <div class="add-crop-row">
+                            <select id="add-crop-select" class="select-styled">
+                                <option value="">Agregar cultivo…</option>
+                                <option value="soja">🌱 Soja</option>
+                                <option value="maiz">🌽 Maíz</option>
+                                <option value="trigo">🌾 Trigo</option>
+                                <option value="girasol">🌻 Girasol</option>
+                                <option value="sorgo">🌿 Sorgo</option>
+                                <option value="cebada">🌾 Cebada</option>
+                                <option value="alfalfa">🍀 Alfalfa</option>
+                                <option value="avena">🌾 Avena</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="addCrop()">Agregar</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="farm-size">Superficie (hectáreas)</label>
+                        <input type="number" id="farm-size" class="input-styled" placeholder="Ej: 150" value="150">
+                    </div>
+
+                    <button class="btn btn-primary btn-block" onclick="saveFarmConfig()">
+                        💾 Guardar Configuración
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── CLIMA ──────── -->
+        <section id="section-clima" class="content-section">
+            <div class="section-header">
+                <h2>🌤️ Análisis Climático</h2>
+                <p class="section-desc">Datos climáticos de NASA POWER para tu ubicación</p>
+            </div>
+
+            <!-- Climate Controls -->
+            <div class="card controls-card">
+                <div class="controls-row">
+                    <div class="form-group inline">
+                        <label>Desde</label>
+                        <input type="date" id="climate-start" class="input-styled" value="2023-01-01">
+                    </div>
+                    <div class="form-group inline">
+                        <label>Hasta</label>
+                        <input type="date" id="climate-end" class="input-styled" value="2023-12-31">
+                    </div>
+                    <button class="btn btn-primary" onclick="loadClimateData()">
+                        🔄 Actualizar Datos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Climate Summary Cards -->
+            <div class="metrics-grid" id="climate-summary">
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#D8F3DC;color:#2D6A4F;">🌡️</div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="climate-avg-temp">17.2°C</span>
+                        <span class="metric-label">Temp. Promedio Anual</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#A9D6E5;color:#1B4965;">🌧️</div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="climate-total-precip">1,023 mm</span>
+                        <span class="metric-label">Precipitación Total</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#FDEBD0;color:#E76F51;">🔥</div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="climate-max-temp">32.4°C</span>
+                        <span class="metric-label">Temperatura Máxima</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon" style="background:#D6EAF8;color:#1B4965;">❄️</div>
+                    <div class="metric-info">
+                        <span class="metric-value" id="climate-min-temp">4.8°C</span>
+                        <span class="metric-label">Temperatura Mínima</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🌊 MÓDULO DE IMPACTO CLIMÁTICO: EL NIÑO & LA NIÑA (Para Ambos con Enfoque Diferenciado) -->
+            <div id="climate-enso-section" class="card enso-impact-card">
+                <div class="enso-header">
+                    <div class="enso-title-box">
+                        <span class="enso-badge">🛰️ TELEMETRÍA NASA & OCEANOGRAFÍA ENSO</span>
+                        <h3 class="card-title">🌊 Impacto de Fenómenos Climáticos: El Niño vs La Niña</h3>
+                        <p id="enso-audience-tagline" class="card-hint">
+                            Cómo afectarán estos eventos al predio y qué medidas agronómicas inmediatas tomar
+                        </p>
+                    </div>
+                    <!-- Pestañas interactivas para alternar entre El Niño y La Niña -->
+                    <div class="enso-tabs">
+                        <button type="button" id="tab-enso-nino" class="enso-tab active"
+                            onclick="switchEnsoTab('nino')">
+                            🌊 El Niño (Fase Cálida / Lluvias)
+                        </button>
+                        <button type="button" id="tab-enso-nina" class="enso-tab" onclick="switchEnsoTab('nina')">
+                            ❄️ La Niña (Fase Fría / Sequía)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Contenido Dinámico del Fenómeno (Renderizado según rol y fase activa) -->
+                <div id="enso-content-body" class="enso-body">
+                    <!-- Inyectado dinámicamente por auth.js / app.js -->
+                </div>
+            </div>
+
+            <!-- Gráficos Climáticos Exclusivos del Asesor Técnico (Eliminados para el Agricultor) -->
+            <div id="climate-charts-wrapper">
+                <div class="card climate-advisor-summary-card">
+                    <div class="advisor-summary-header">
+                        <span class="badge-role-asesor">🔬 Resumen Agroclimático Técnico (Para el Asesor)</span>
+                        <span class="summary-source">Fuente: NASA POWER Agroclimatology (MERRA-2)</span>
+                    </div>
+                    <p class="advisor-summary-text">
+                        <strong>Diagnóstico Agrometeorológico Biobío:</strong> Régimen templado cálido con estación seca
+                        prolongada (tipo mediterráneo).
+                        El 72% de la precipitación anual (1.023 mm) se concentra entre mayo y agosto.
+                        La humedad volumétrica en la zona radicular (SMAP GWETROOT) cae a niveles críticos (< 38%) entre
+                            diciembre y marzo, haciendo imprescindible la retención hídrica mediante cultivos de
+                            cobertura como Vicia o Centeno para mitigar el estrés térmico en floración. </p>
+                </div>
+
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <h3 class="card-title">🌡️ Temperatura Mensual</h3>
+                        <div class="chart-container chart-lg">
+                            <canvas id="climate-temp-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <h3 class="card-title">🌧️ Precipitación Mensual</h3>
+                        <div class="chart-container chart-lg">
+                            <canvas id="climate-precip-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <h3 class="card-title">💧 Humedad del Suelo</h3>
+                        <div class="chart-container chart-lg">
+                            <canvas id="climate-moisture-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <h3 class="card-title">📈 Resumen Climático</h3>
+                        <div class="chart-container chart-lg">
+                            <canvas id="climate-overview-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── ROTACIONES / RESUMEN ──────── -->
+        <section id="section-rotaciones" class="content-section">
+            <div class="section-header">
+                <h2 id="rotaciones-section-title">🔄 Plan de Acción: 3 Estrategias de Rotación</h2>
+                <p id="rotaciones-section-desc" class="section-desc">Comparativa agronómica y financiera para adaptar tu
+                    explotación al cambio climático con datos satelitales NASA</p>
+            </div>
+
+            <!-- Resumen Ejecutivo Breve (Exclusivo para el Agricultor - Mentorías AMAC) -->
+            <div id="farmer-executive-summary" class="card farmer-executive-card" style="display: none;">
+                <div class="exec-card-header">
+                    <span class="exec-badge">📋 RESUMEN EJECUTIVO PARA EL AGRICULTOR</span>
+                    <span class="exec-farm-tag" id="exec-farm-name">Predio El Roble (Los Ángeles)</span>
+                </div>
+                <h3 class="exec-title">Plan Recomendado Temporada 2026: Regeneración y Ahorro Directo</h3>
+                <p class="exec-lead">
+                    Tu terreno tiene un gran potencial. Aplicando la estrategia recomendada por AMAC junto a tu asesor
+                    técnico,
+                    <strong>ahorras costos inmediatos</strong> y proteges tu tierra frente a sequías y heladas.
+                </p>
+                <div class="exec-highlights-grid">
+                    <div class="exec-highlight-box">
+                        <span class="exec-h-icon">💰</span>
+                        <div class="exec-h-info">
+                            <span class="exec-h-num">25% a 35%</span>
+                            <span class="exec-h-label">Ahorro en compra de fertilizante químico (Urea)</span>
+                        </div>
+                    </div>
+                    <div class="exec-highlight-box">
+                        <span class="exec-h-icon">🍀</span>
+                        <div class="exec-h-info">
+                            <span class="exec-h-num">+85 a 130 kg</span>
+                            <span class="exec-h-label">Nitrógeno natural gratis por hectárea (Vicia villosa)</span>
+                        </div>
+                    </div>
+                    <div class="exec-highlight-box">
+                        <span class="exec-h-icon">💧</span>
+                        <div class="exec-h-info">
+                            <span class="exec-h-num">0 días</span>
+                            <span class="exec-h-label">De suelo desnudo: colchón vivo que guarda la humedad</span>
+                        </div>
+                    </div>
+                    <div class="exec-highlight-box">
+                        <span class="exec-h-icon">⭐</span>
+                        <div class="exec-h-info">
+                            <span class="exec-h-num" id="exec-optimal-score">88 / 100</span>
+                            <span class="exec-h-label">Puntaje agronómico óptimo para tu tipo de suelo</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="exec-footer-callout">
+                    💡 <strong>Próximo paso simple:</strong> Revisa las 3 alternativas a continuación y define con tu
+                    asesor la fecha de siembra de la vicia para después de la cosecha.
+                </div>
+            </div>
+
+            <!-- Hero Banner de las 3 Estrategias (Visible para Asesor) -->
+            <div id="advisor-hero-banner" class="card strategy-hero-banner">
+                <div class="strategy-hero-content">
+                    <span class="hero-chip">🚀 NÚCLEO DEL RETO NASA SPACE APPS</span>
+                    <h3>¿Por qué comparar 3 Estrategias de Rotación?</h3>
+                    <p>
+                        Un cultivo que mejora la salud del suelo en un lote puede consumir demasiada agua o entrar en
+                        conflicto con el mercado en otro.
+                        <strong>AMAC evalúa simultáneamente tres caminos complementarios:</strong> tu rotación actual
+                        como punto de referencia, una estrategia regenerativa de alta biomasa y fijación biológica de
+                        nitrógeno, y una estrategia de máxima resiliencia ante sequías.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Matriz Comparativa Frente a Frente (Head-to-head) -->
+            <div id="head-to-head-card" class="card head-to-head-card">
+                <h3 class="card-title">⚖️ Matriz Comparativa Frente a Frente (Head-to-Head)</h3>
+                <p class="card-hint">Contraste directo de parámetros agronómicos, balances ambientales y calificaciones dinámicas según tu calibración:</p>
+                <div class="table-responsive" style="margin-top: 14px;">
+                    <table class="table-styled head-to-head-table">
+                        <thead>
+                            <tr>
+                                <th>Parámetro / Variable</th>
+                                <th id="h2h-col-strategy_actual" class="h2h-th-base">1. Rotación Actual
+                                    (Línea Base)</th>
+                                <th id="h2h-col-strategy_regenerative" class="h2h-th-rec">2. Regenerativa
+                                    (Recomendada AMAC) ⭐</th>
+                                <th id="h2h-col-strategy_water" class="h2h-th-water">3. Resiliencia Hídrica 💧
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Secuencia de Cultivos</strong></td>
+                                <td>Soja ➔ Barbecho desnudo ➔ Maíz ➔ Barbecho</td>
+                                <td style="font-weight: 600; color: #2D6A4F;">Soja ➔ Vicia Villosa ➔ Maíz Tardío ➔ Trigo
+                                </td>
+                                <td style="color: #1B4965;">Sorgo Forrajero ➔ Centeno ➔ Girasol</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fijación Biológica de N</strong></td>
+                                <td>Baja (-45 kg N/ha acumulado)</td>
+                                <td style="color: #2D6A4F; font-weight: 700;">+85 a +130 kg N/ha biológico gratis</td>
+                                <td>Media (+15 kg N/ha)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Consumo de Agua (NASA POWER)</strong></td>
+                                <td>780 mm/año (Picos de evaporación)</td>
+                                <td style="color: #2D6A4F;">590 mm/año (Eficiente por mulching)</td>
+                                <td style="color: #1B4965; font-weight: 700;">480 mm/año (Máximo ahorro hídrico)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Suelo Descubierto en Invierno</strong></td>
+                                <td style="color: #e63946; font-weight: 600;">150 días/año sin cobertura vegetal</td>
+                                <td style="color: #2D6A4F; font-weight: 700;">0 días (Cobertura 100% viva)</td>
+                                <td>20 días (Rastrojo leñoso persistente)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Riesgo de Erosión y Malezas</strong></td>
+                                <td style="color: #e63946;">Alto (Resistencia a herbicidas)</td>
+                                <td style="color: #2D6A4F; font-weight: 600;">Muy Bajo (Ruptura biológica natural)</td>
+                                <td>Bajo (Alta cobertura residual)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ahorro en Fertilizantes Químicos</strong></td>
+                                <td>0% (Mayor dependencia de Urea)</td>
+                                <td style="color: #2D6A4F; font-weight: 700;">25% a 35% de ahorro en U$S</td>
+                                <td>15% de ahorro</td>
+                            </tr>
+                            <tr id="h2h-row-scores">
+                                <td><strong>Puntuación Ponderada AMAC</strong></td>
+                                <td><span id="h2h-score-strategy_actual" class="score-pill score-pill-low" onclick="selectStrategyForActionPlan('strategy_actual')" title="Ver recomendación para esta estrategia">58 / 100</span></td>
+                                <td><span id="h2h-score-strategy_regenerative" class="score-pill score-pill-rec" onclick="selectStrategyForActionPlan('strategy_regenerative')" title="Ver recomendación para esta estrategia">88 / 100 (Óptima)</span></td>
+                                <td><span id="h2h-score-strategy_water" class="score-pill score-pill-water" onclick="selectStrategyForActionPlan('strategy_water')" title="Ver recomendación para esta estrategia">82 / 100</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Priority Sliders -->
+            <div class="card priorities-card">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 id="priorities-card-title" class="card-title">🎯 Calibración de Prioridades del Productor
+                        </h3>
+                        <p id="priorities-card-hint" class="card-hint">Mueve los deslizadores para ajustar los pesos
+                            según los objetivos. Las calificaciones de la Matriz Comparativa se recalculan en tiempo real (máximo
+                            100/100):</p>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="setPredefinedPriorities('soil')">🌱 Perfil
+                            Regenerativo</button>
+                        <button class="btn btn-secondary btn-sm" onclick="setPredefinedPriorities('water')">💧 Perfil
+                            Ahorro de Agua</button>
+                    </div>
+                </div>
+
+                <!-- Selector Desplegable de Agricultor para el Asesor Técnico (Mentorías AMAC) -->
+                <div id="advisor-farmer-calib-wrap" class="advisor-farmer-calib-select-box"
+                    style="margin-top: 14px; padding: 12px 14px; background: #eef7f2; border: 1.5px solid #52B788; border-radius: 8px;">
+                    <label for="advisor-calib-select"
+                        style="font-weight: 700; color: #2D6A4F; font-size: 0.92rem; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                        <span>👨‍🌾</span> Seleccionar Agricultor para calibrar sus prioridades personalizadas:
+                    </label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="advisor-calib-select" class="select-styled"
+                            style="flex: 1; font-weight: 600; background: #fff;"
+                            onchange="onAdvisorCalibFarmerChange(this.value)">
+                            <!-- Opciones inyectadas dinámicamente -->
+                        </select>
+                        <span id="calib-farmer-badge" class="badge-role-agri"
+                            style="font-size: 0.78rem; padding: 4px 10px;">Activo</span>
+                    </div>
+                </div>
+
+                <div class="priorities-grid" style="margin-top: 14px;">
+                    <div class="priority-slider">
+                        <label>💧 Conservación de Agua</label>
+                        <input type="range" min="0" max="100" value="50" class="slider"
+                            data-priority="water_conservation" oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                    <div class="priority-slider">
+                        <label>🌱 Salud del Suelo</label>
+                        <input type="range" min="0" max="100" value="50" class="slider" data-priority="soil_health"
+                            oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                    <div class="priority-slider">
+                        <label>💰 Retorno Económico</label>
+                        <input type="range" min="0" max="100" value="50" class="slider" data-priority="economic_return"
+                            oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                    <div class="priority-slider">
+                        <label>🐛 Manejo de Plagas</label>
+                        <input type="range" min="0" max="100" value="50" class="slider" data-priority="pest_management"
+                            oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                    <div class="priority-slider">
+                        <label>🏔️ Control de Erosión</label>
+                        <input type="range" min="0" max="100" value="50" class="slider" data-priority="erosion_control"
+                            oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                    <div class="priority-slider">
+                        <label>🍀 Fijación de Nitrógeno</label>
+                        <input type="range" min="0" max="100" value="50" class="slider"
+                            data-priority="nitrogen_fixation" oninput="updatePriorities()">
+                        <span class="slider-value">50%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Radar Chart (Solo Asesor Técnico; oculto en visión de agricultor) -->
+            <div id="strategy-radar-card" class="card chart-card" style="max-width:760px;margin:2rem auto;">
+                <h3 class="card-title">📊 Comparación Multidimensional de las 3 Estrategias</h3>
+                <p class="card-hint">Gráfico de radar comparativo según los 6 factores agroambientales clave</p>
+                <div class="chart-container chart-lg">
+                    <canvas id="strategy-radar-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- ¿Qué decisión tomar? - Recomendación Simplificada (renderizada dinámicamente por JS) -->
+            <div id="action-plan-timeline" class="card action-plan-card decision-card">
+                <div class="decision-header">
+                    <div>
+                        <span class="action-plan-badge">🧭 ¿QUÉ DECISIÓN TOMAR? — RECOMENDACIÓN AMAC</span>
+                        <h3 class="card-title">Decisión de Rotación Recomendada para tu Predio</h3>
+                        <p class="card-hint">Calculada cruzando telemetría satelital NASA (POWER, SMAP, GPM), suelo SoilGrids y tus prioridades.</p>
+                    </div>
+                </div>
+                <div class="decision-hero-box">
+                    <div class="decision-hero-main">
+                        <span class="decision-kicker">Cultivo y Secuencia Recomendada</span>
+                        <h4 class="decision-strategy-name">2. Regeneración de Suelo y Biomasa (88/100)</h4>
+                        <p class="decision-reason">Incorpora Vicia villosa como puente invernal antes del Maíz y Trigo para capturar nitrógeno biológico y proteger la humedad del suelo.</p>
+                    </div>
+                    <div class="decision-impact-chips">
+                        <div class="decision-chip">💧 <strong>85/100</strong> Ahorro hídrico</div>
+                        <div class="decision-chip">🌱 <strong>94/100</strong> Salud del suelo</div>
+                    </div>
+                </div>
+                <div class="decision-steps-grid">
+                    <div class="decision-step-card">
+                        <div class="decision-step-num">1 · HOY (Mes 1)</div>
+                        <h5>Diagnóstico y compra de semilla</h5>
+                        <p>Adquirir semilla de Vicia villosa inoculada y verificar humedad superficial SMAP (&gt;45%).</p>
+                    </div>
+                    <div class="decision-step-card">
+                        <div class="decision-step-num">2 · OTOÑO-INVIERNO</div>
+                        <h5>Siembra de cobertura protectora</h5>
+                        <p>Establecer cobertura viva tras cosecha para evitar erosión y fijar nitrógeno natural.</p>
+                    </div>
+                    <div class="decision-step-card">
+                        <div class="decision-step-num">3 · PRIMAVERA-VERANO</div>
+                        <h5>Rolado y siembra directa</h5>
+                        <p>Sembrar sobre el rastrojo reduciendo hasta 30% la fertilización nitrogenada sintética.</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ──────── PORTAL REGIONAL BIOBÍO (B2B2C & API) ──────── -->
+        <section id="section-regional" class="content-section">
+            <div class="section-header">
+                <h2>🏛️ Portal Regional Biobío (API & Monitoreo Institucional)</h2>
+                <p class="section-desc">Plataforma B2B para INDAP, PRODESAL, Municipalidades y Cooperativas Cerealeras
+                    de la Provincia del Biobío</p>
+            </div>
+
+            <div id="regional-api-container">
+                <!-- Renderizado por js/regional-api.js -->
+            </div>
+        </section>
+
+        <!-- ──────── INFORME OFICIAL / GUÍA PARA AGRICULTOR ──────── -->
+        <section id="section-reportes" class="content-section">
+            <div class="section-header">
+                <h2 id="reportes-section-title">📊 Informe Oficial y Guía de Manejo</h2>
+                <p id="reportes-section-desc" class="section-desc">Documento estructurado según perfil de usuario: Guía
+                    práctica para el agricultor o Dossier técnico para el asesor</p>
+            </div>
+
+            <!-- Sincronización y Estado del Reporte -->
+            <div class="date-sync-bar" style="margin-bottom: 1.5rem;">
+                <div class="current-date-info">
+                    <span class="date-live-badge">📅 Fecha de Emisión: <strong id="report-current-badge">Sincronizando...</strong></span>
+                    <span class="satellite-live-pill">🛰️ Datos Validados NASA & SoilGrids</span>
+                </div>
+            </div>
+
+            <!-- Report Controls -->
+            <div class="card">
+                <h3 class="card-title">📋 Configuración del Reporte</h3>
+                <div class="report-controls">
+                    <div class="form-group">
+                        <label>Tipo de Reporte</label>
+                        <select id="report-type" class="select-styled">
+                            <option value="climate">🌤️ Reporte Climático</option>
+                            <option value="rotation">🔄 Reporte de Rotaciones</option>
+                            <option value="complete">📋 Reporte Completo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Periodicidad</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="periodicity" value="diario"> Diario
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="periodicity" value="semanal" checked> Semanal
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="periodicity" value="mensual"> Mensual
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group-row">
+                        <div class="form-group inline">
+                            <label>Desde</label>
+                            <input type="date" id="report-start" class="input-styled" value="2023-01-01">
+                        </div>
+                        <div class="form-group inline">
+                            <label>Hasta</label>
+                            <input type="date" id="report-end" class="input-styled" value="2023-12-31">
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="generateReport()">📄 Generar Reporte</button>
+                        <button class="btn btn-secondary" onclick="printReport()">🖨️ Imprimir</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Preview -->
+            <div class="card" id="report-preview-card" style="display:none;">
+                <div class="report-header-bar">
+                    <h3 class="card-title">Vista Previa del Reporte</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="printReport()">🖨️ Imprimir</button>
+                </div>
+                <div id="report-preview" class="report-preview">
+                    <!-- Report content rendered here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── BASES DE DATOS NASA Y PARÁMETROS ──────── -->
+        <section id="section-nasa" class="content-section">
+            <div class="section-header">
+                <h2>🛰️ Datos y Parámetros Satelitales NASA</h2>
+                <p class="section-desc">Ciencia de observación terrestre aplicada a las decisiones de tu campo</p>
+            </div>
+
+            <!-- Introducción explicativa -->
+            <div class="card"
+                style="margin-bottom: 1.5rem; background: linear-gradient(135deg, rgba(27,73,101,0.05) 0%, rgba(45,106,79,0.05) 100%); border-left: 4px solid #2D6A4F;">
+                <h3 class="card-title" style="color: #1B4965;">🌍 ¿Por qué combinamos satélites de la NASA con el suelo
+                    de tu finca?</h3>
+                <p style="font-size: 0.95rem; line-height: 1.6; color: #495057; margin-bottom: 10px;">
+                    Las mediciones terrestres locales (como calicatas o estaciones meteorológicas) ofrecen gran
+                    precisión en un punto exacto, pero no siempre registran lo que ocurre en todo el lote ni la historia
+                    climática de los últimos 20 años.
+                    Por su parte, los <strong>satélites de observación terrestre de la NASA</strong> escanean el planeta
+                    continuamente con sensores térmicos, de microondas y ópticos.
+                </p>
+                <p style="font-size: 0.95rem; line-height: 1.6; color: #495057; margin: 0;">
+                    <strong>AMAC une ambos mundos:</strong> armoniza las resoluciones satelitales con las
+                    características de tu suelo y tus prioridades productivas para prever estrés hídrico, ventanas de
+                    heladas y degradación antes de que afecten tus rendimientos.
+                </p>
+            </div>
+
+            <!-- Grid de Misiones y Conjuntos de Datos NASA -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <h3 class="card-title">📡 Misiones y Bases de Datos Satelitales Integradas</h3>
+                <div
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem;">
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">☀️</span>
+                            <strong style="color: #2D6A4F; font-size: 1.05rem;">NASA POWER</strong>
+                        </div>
+                        <span class="chip"
+                            style="background: #D8F3DC; color: #2D6A4F; font-size: 0.75rem;">Agroclimatología</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Provee series históricas diarias de radiación solar, temperaturas a 2m, velocidad del viento
+                            y humedad relativa optimizadas para modelos de crecimiento agrícola.
+                        </p>
+                    </div>
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">💧</span>
+                            <strong style="color: #1B4965; font-size: 1.05rem;">SMAP (Soil Moisture Active
+                                Passive)</strong>
+                        </div>
+                        <span class="chip" style="background: #E8F4F8; color: #1B4965; font-size: 0.75rem;">Humedad del
+                            Suelo</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Sensor de microondas que mide la humedad superficial y en la zona radicular (0–100 cm).
+                            Crucial para detectar sequías agrícolas antes de que el cultivo se marchite.
+                        </p>
+                    </div>
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">🌧️</span>
+                            <strong style="color: #2C7DA0; font-size: 1.05rem;">GPM (Global Precipitation
+                                Measurement)</strong>
+                        </div>
+                        <span class="chip"
+                            style="background: #E8F4F8; color: #2C7DA0; font-size: 0.75rem;">Precipitación Global</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Constelación de satélites que unifica radares espaciales para cuantificar lluvias intensas,
+                            granizo y patrones estacionales con alta periodicidad temporal.
+                        </p>
+                    </div>
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">🔥</span>
+                            <strong style="color: #E76F51; font-size: 1.05rem;">ECOSTRESS (Estación Espacial
+                                ISS)</strong>
+                        </div>
+                        <span class="chip" style="background: #FDE8E4; color: #E76F51; font-size: 0.75rem;">Estrés
+                            Térmico y Evaporación</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Radiómetro térmico de alta resolución que monitorea la temperatura de las hojas y la
+                            evapotranspiración, alertando sobre "fiebre" en las plantas por falta de agua.
+                        </p>
+                    </div>
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">🌱</span>
+                            <strong style="color: #40916C; font-size: 1.05rem;">Landsat & MODIS</strong>
+                        </div>
+                        <span class="chip" style="background: #D8F3DC; color: #40916C; font-size: 0.75rem;">Índices
+                            Vegetativos (NDVI / EVI)</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Fotografía multiespectral que rastrea la fotosíntesis, el verdor y la cobertura del suelo a
+                            lo largo de décadas para verificar si la rotación aumentó la biomasa.
+                        </p>
+                    </div>
+
+                    <div style="background: #F8F9FA; border: 1px solid #E9ECEF; border-radius: 10px; padding: 1.2rem;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-size: 1.4rem;">🌊</span>
+                            <strong style="color: #1B4965; font-size: 1.05rem;">GRACE & GRACE-FO</strong>
+                        </div>
+                        <span class="chip" style="background: #E8F4F8; color: #1B4965; font-size: 0.75rem;">Reservas de
+                            Agua Subterránea</span>
+                        <p style="font-size: 0.85rem; color: #495057; margin-top: 8px;">
+                            Mide variaciones microscópicas de la gravedad terrestre para detectar el agotamiento o
+                            recarga de acuíferos subterráneos a escala regional.
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Tabla de Parámetros Específicos -->
+            <div class="card">
+                <h3 class="card-title">🔬 Glosario y Tabla de Parámetros Científicos</h3>
+                <p class="card-hint">Parámetros procesados por el motor analítico de AMAC para generar las
+                    recomendaciones:</p>
+                <div style="overflow-x: auto; margin-top: 1rem;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+                        <thead>
+                            <tr style="background: #F1F5F2; border-bottom: 2px solid #52B788; text-align: left;">
+                                <th style="padding: 10px;">Código</th>
+                                <th style="padding: 10px;">Parámetro</th>
+                                <th style="padding: 10px;">Unidad</th>
+                                <th style="padding: 10px;">Sensor / Satélite</th>
+                                <th style="padding: 10px;">Impacto en el Manejo Agrícola</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid #E9ECEF;">
+                                <td style="padding: 10px;"><strong>T2M</strong></td>
+                                <td style="padding: 10px;">Temperatura a 2m</td>
+                                <td style="padding: 10px;">°C</td>
+                                <td style="padding: 10px;">NASA POWER / GEOS</td>
+                                <td style="padding: 10px;">Cálculo de Grados-Día de Crecimiento (GDD) y fenología del
+                                    cultivo.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF; background: #FAFDFB;">
+                                <td style="padding: 10px;"><strong>T2M_MIN</strong></td>
+                                <td style="padding: 10px;">Temperatura Mínima Diaria</td>
+                                <td style="padding: 10px;">°C</td>
+                                <td style="padding: 10px;">NASA POWER</td>
+                                <td style="padding: 10px;">Detección temprana de riesgo de heladas tardías o tempranas.
+                                </td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF;">
+                                <td style="padding: 10px;"><strong>PRECTOTCORR</strong></td>
+                                <td style="padding: 10px;">Precipitación Corregida</td>
+                                <td style="padding: 10px;">mm/día</td>
+                                <td style="padding: 10px;">GPM / MERRA-2</td>
+                                <td style="padding: 10px;">Balance hídrico, recarga del perfil y riesgo de erosión
+                                    hídrica en barbecho.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF; background: #FAFDFB;">
+                                <td style="padding: 10px;"><strong>GWETROOT</strong></td>
+                                <td style="padding: 10px;">Humedad en Zona Radicular</td>
+                                <td style="padding: 10px;">Fracción (0–1)</td>
+                                <td style="padding: 10px;">SMAP / MERRA-2 Land</td>
+                                <td style="padding: 10px;">Disponibilidad real de agua para las raíces; define la fecha
+                                    óptima de siembra.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF;">
+                                <td style="padding: 10px;"><strong>EVPTRNS</strong></td>
+                                <td style="padding: 10px;">Evapotranspiración</td>
+                                <td style="padding: 10px;">mm/día</td>
+                                <td style="padding: 10px;">ECOSTRESS / NASA POWER</td>
+                                <td style="padding: 10px;">Pérdida de agua por transpiración de plantas y evaporación
+                                    directa del suelo.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF; background: #FAFDFB;">
+                                <td style="padding: 10px;"><strong>ALLSKY_SFC_SW</strong></td>
+                                <td style="padding: 10px;">Radiación Solar Superficie</td>
+                                <td style="padding: 10px;">MJ/m²/día</td>
+                                <td style="padding: 10px;">CERES / FLASHFlux</td>
+                                <td style="padding: 10px;">Capacidad fotosintética máxima y eficiencia en el uso de la
+                                    radiación.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #E9ECEF;">
+                                <td style="padding: 10px;"><strong>NDVI</strong></td>
+                                <td style="padding: 10px;">Índice de Vegetación Normalizado</td>
+                                <td style="padding: 10px;">Índice (-1 a +1)</td>
+                                <td style="padding: 10px;">Landsat 8-9 / MODIS</td>
+                                <td style="padding: 10px;">Evaluación de salud foliar, vigor y biomasa vegetal
+                                    acumulada.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══════════════ MODAL DE INICIO DE SESIÓN / PERFIL (MODELO B2B2C) ═══════════════ -->
+    <div id="auth-modal" class="auth-modal">
+        <div class="auth-modal-dialog">
+            <div class="auth-modal-header">
+                <h3>🌾 Acceso a Terrashift · Modelo B2B2C</h3>
+                <p>Conectando el criterio técnico del asesor con la experiencia del agricultor</p>
+                <button class="auth-modal-close" onclick="closeLoginModal()" aria-label="Cerrar modal de autenticación">✕</button>
+            </div>
+            <div class="auth-modal-body">
+
+                <!-- Acceso rápido para el Jurado según el Dossier de Negocio -->
+                <div class="demo-login-section">
+                    <div class="demo-login-title">⚡ Selecciona tu Rol de Demostración (Provincia de Biobío):</div>
+                    <div class="demo-profiles-grid">
+
+                        <!-- 1. Asesor Agrícola (Copiloto) -->
+                        <div class="demo-profile-btn" onclick="switchUserRole('asesor')">
+                            <span class="demo-avatar">👨‍🌾</span>
+                            <div>
+                                <div class="demo-name">Ing. Rodrigo Valenzuela</div>
+                                <div class="demo-role">Asesor Técnico PRODESAL / INDAP (Comuna Los Ángeles)</div>
+                            </div>
+                            <span class="demo-badge badge-role-asesor">Rol Asesor</span>
+                        </div>
+
+                        <!-- 2. Agricultor (Toma la decisión) -->
+                        <div class="demo-profile-btn" onclick="switchUserRole('agricultor')">
+                            <span class="demo-avatar">🚜</span>
+                            <div>
+                                <div class="demo-name">Don Manuel Alarcón</div>
+                                <div class="demo-role">Agricultor Cerealero Familiar · Predio El Roble (65 ha)</div>
+                            </div>
+                            <span class="demo-badge badge-role-agri">Rol Agricultor</span>
+                        </div>
+
+                        <!-- 3. Cliente Institucional Pagador -->
+                        <div class="demo-profile-btn" onclick="switchUserRole('institucion')">
+                            <span class="demo-avatar">🏛️</span>
+                            <div>
+                                <div class="demo-name">Dirección de Desarrollo Rural</div>
+                                <div class="demo-role">Municipalidad de Los Ángeles · Monitoreo Territorial</div>
+                            </div>
+                            <span class="demo-badge badge-role-inst">Cliente B2B</span>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Formulario personalizado -->
+                <div>
+                    <div class="demo-login-title">📝 O Ingresa tus Datos Personalizados:</div>
+                    <form onsubmit="handleCustomLogin(event)">
+                        <div class="form-group">
+                            <label>Nombre y Apellido *</label>
+                            <input type="text" id="login-name" class="input-styled" placeholder="Ej: Manuel Alarcón"
+                                value="Manuel Alarcón" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre del Predio o Entidad</label>
+                            <input type="text" id="login-farm" class="input-styled" placeholder="Ej: Predio Los Álamos"
+                                value="Predio Los Álamos">
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Rol en el Sistema</label>
+                                <select id="login-role" class="select-styled">
+                                    <option value="asesor">🔬 Asesor Agrícola (Copiloto)</option>
+                                    <option value="agricultor" selected>🌾 Agricultor (Toma la Decisión)</option>
+                                    <option value="institucion">🏛️ Institución / Municipio (B2B)</option>
+                                </select>
+                            </div>
+                            <div class="form-group inline" style="flex:1;">
+                                <label>Comuna / Región</label>
+                                <input type="text" id="login-location" class="input-styled"
+                                    placeholder="Ej: Los Ángeles, Biobío" value="Los Ángeles, Biobío, Chile">
+                            </div>
+                        </div>
+                        <div class="btn-row" style="margin-top: 16px;">
+                            <button type="submit" class="btn btn-primary btn-block">🚀 Ingresar a la Plataforma</button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts Modulares Organizados -->
+    <script src="js/auth.js"></script>
+    <script src="js/soilgrids-client.js"></script>
+    <script src="js/regional-api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/nasa-data.js"></script>
+    <script src="js/rotation.js"></script>
+    <script src="js/reports.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+            if (typeof renderRegionalAPIExplorer === 'function') {
+                renderRegionalAPIExplorer();
+            }
+        });
+    </script>
+</body>
+
+</html>
