@@ -13,6 +13,7 @@
 
 *Transforming NASA satellite Earth Observations and global soil telemetry into clear, actionable crop rotation decisions for farmers, agronomists, and rural institutions.*
 
+[Link to GITLAB](https://terrashift-amac-148591.gitlab.io)
 [📖 How It Works (Brief Visual Guide)](docs/HOW_IT_WORKS_EN.md) · [🏛️ System Architecture (ES)](ARCHITECTURE.md) · [🚀 Quick Start](#-quick-start)
 
 </div>
